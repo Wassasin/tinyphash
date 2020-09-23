@@ -18,15 +18,15 @@
 typedef struct {
   float *buf;
   size_t dim;
-} grayscalef_square_image_t;
+} tinyphash_smatrixf_t;
 
 typedef struct {
   uint8_t *buf;
   size_t dim;
-} grayscale_square_image_t;
+} tinyphash_smatrix_t;
 
 // Compute the DCT matrix for a given dimensionality.
-static grayscalef_square_image_t tinyphash_dct_matrix(const size_t N) {
+static tinyphash_smatrixf_t tinyphash_dct_matrix(const size_t N) {
   float *buf = (float *)calloc(N * N, sizeof(float));
   float dv = 1 / sqrt((float)N);
   const float c1 = sqrt(2.0 / N);
@@ -42,7 +42,7 @@ static grayscalef_square_image_t tinyphash_dct_matrix(const size_t N) {
     }
   }
 
-  grayscalef_square_image_t result = {
+  tinyphash_smatrixf_t result = {
       .buf = buf,
       .dim = N,
   };
@@ -51,8 +51,7 @@ static grayscalef_square_image_t tinyphash_dct_matrix(const size_t N) {
 }
 
 // Transpose a matrix.
-static grayscalef_square_image_t
-tinyphash_transpose(grayscalef_square_image_t matrix) {
+static tinyphash_smatrixf_t tinyphash_transpose(tinyphash_smatrixf_t matrix) {
   float *buf = (float *)calloc(matrix.dim * matrix.dim, sizeof(float));
 
   for (size_t y = 0; y < matrix.dim; ++y) {
@@ -61,7 +60,7 @@ tinyphash_transpose(grayscalef_square_image_t matrix) {
     }
   }
 
-  grayscalef_square_image_t result = {
+  tinyphash_smatrixf_t result = {
       .buf = buf,
       .dim = matrix.dim,
   };
@@ -70,9 +69,8 @@ tinyphash_transpose(grayscalef_square_image_t matrix) {
 }
 
 // Perform correlation filtering.
-static grayscalef_square_image_t
-tinyphash_correlate_mean(grayscale_square_image_t image,
-                         size_t mean_kernel_dim) {
+static tinyphash_smatrixf_t tinyphash_correlate_mean(tinyphash_smatrix_t image,
+                                                     size_t mean_kernel_dim) {
   size_t dim = image.dim - mean_kernel_dim + 1;
 
   float *buf = (float *)calloc(dim * dim, sizeof(float));
@@ -94,7 +92,7 @@ tinyphash_correlate_mean(grayscale_square_image_t image,
     }
   }
 
-  grayscalef_square_image_t result = {
+  tinyphash_smatrixf_t result = {
       .buf = buf,
       .dim = dim,
   };
@@ -104,9 +102,9 @@ tinyphash_correlate_mean(grayscale_square_image_t image,
 
 // Perform matrix multiplication, whilst simultaneously cropping the result to a
 // pre-allocated dest. (resulting in less multiplications)
-static void tinyphash_multiply_cropped(grayscalef_square_image_t a,
-                                       grayscalef_square_image_t b,
-                                       grayscalef_square_image_t dest) {
+static void tinyphash_multiply_cropped(tinyphash_smatrixf_t a,
+                                       tinyphash_smatrixf_t b,
+                                       tinyphash_smatrixf_t dest) {
   assert(a.dim == b.dim);
 
   for (size_t i = 0; i < dest.dim; ++i) {
@@ -133,31 +131,29 @@ static float tinyphash_median(const float *src, size_t size) {
   return res;
 }
 
-grayscalef_square_image_t tinyphash_dct_precompute() {
-  grayscalef_square_image_t dct_matrix =
-      tinyphash_dct_matrix(TINY_PHASH_MATRIX_DIM);
+tinyphash_smatrixf_t tinyphash_dct_precompute() {
+  tinyphash_smatrixf_t dct_matrix = tinyphash_dct_matrix(TINY_PHASH_MATRIX_DIM);
 
   // Transposing alters the matrix only slightly, and probably can be skipped.
-  grayscalef_square_image_t dct_transpose = tinyphash_transpose(dct_matrix);
+  tinyphash_smatrixf_t dct_transpose = tinyphash_transpose(dct_matrix);
   free(dct_matrix.buf);
 
   return dct_transpose;
 }
 
-uint64_t
-tinyphash_dct_unchecked(uint8_t *data,
-                        grayscalef_square_image_t dct_matrix_transposed) {
-  grayscale_square_image_t image = {
+uint64_t tinyphash_dct_unchecked(uint8_t *data,
+                                 tinyphash_smatrixf_t dct_matrix_transposed) {
+  tinyphash_smatrix_t image = {
       .buf = data,
       .dim = TINY_PHASH_BUF_DIM,
   };
 
   // Should do convolution, but our kernel is point-symmetric, thus this
   // is OK.
-  grayscalef_square_image_t image_mean =
+  tinyphash_smatrixf_t image_mean =
       tinyphash_correlate_mean(image, TINY_PHASH_FILTER_DIM);
 
-  grayscalef_square_image_t subsec = {
+  tinyphash_smatrixf_t subsec = {
       .buf =
           calloc(TINY_PHASH_SUBSEC_DIM * TINY_PHASH_SUBSEC_DIM, sizeof(float)),
       .dim = TINY_PHASH_SUBSEC_DIM,
@@ -181,7 +177,7 @@ tinyphash_dct_unchecked(uint8_t *data,
 uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
   assert(width == TINY_PHASH_BUF_DIM && height == TINY_PHASH_BUF_DIM);
 
-  grayscalef_square_image_t dct_matrix_transposed = tinyphash_dct_precompute();
+  tinyphash_smatrixf_t dct_matrix_transposed = tinyphash_dct_precompute();
 
   uint64_t result = tinyphash_dct_unchecked(data, dct_matrix_transposed);
   free(dct_matrix_transposed.buf);
