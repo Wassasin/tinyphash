@@ -184,3 +184,17 @@ uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
 
   return result;
 }
+
+uint8_t tinyphash_hamming_distance(uint64_t x, uint64_t y) {
+  uint8_t hamming = 0;
+  for (size_t i = 0; i < 64; ++i) {
+    if (((x >> i) & 1) != ((y >> i) & 1)) {
+      hamming += 1;
+    }
+  }
+  return hamming;
+}
+
+float tinyphash_hamming_distancef(uint64_t x, uint64_t y) {
+  return ((float)tinyphash_hamming_distance(x, y)) / 64.;
+}
