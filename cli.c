@@ -17,14 +17,14 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
-  uint8_t *buf = read_png(path, TINY_PHASH_BUF_DIM, TINY_PHASH_BUF_DIM);
+  uint8_t *buf = read_png(path, TINYPHASH_INPUT_DIM, TINYPHASH_INPUT_DIM);
 
   if (buf == NULL) {
     return 1;
   }
 
   uint64_t phash =
-      tinyphash_dct_easy(buf, TINY_PHASH_BUF_DIM, TINY_PHASH_BUF_DIM);
+      tinyphash_dct_easy(buf, TINYPHASH_INPUT_DIM, TINYPHASH_INPUT_DIM);
 
   printf("phash: 0x%lx\n", phash);
 

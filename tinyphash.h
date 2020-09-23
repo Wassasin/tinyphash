@@ -10,10 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TINY_PHASH_MATRIX_DIM 32
-#define TINY_PHASH_BUF_DIM (TINY_PHASH_MATRIX_DIM + 6)
-#define TINY_PHASH_SUBSEC_DIM 8
-#define TINY_PHASH_FILTER_DIM 7
+#define TINYPHASH_MATRIX_DIM 32
+#define TINYPHASH_KERNEL_DIM 7
+#define TINYPHASH_INPUT_DIM (TINYPHASH_MATRIX_DIM + TINYPHASH_KERNEL_DIM - 1)
+#define TINYPHASH_SUBSEC_DIM 8
 
 typedef struct {
   float *buf;
@@ -132,7 +132,7 @@ static float tinyphash_median(const float *src, size_t size) {
 }
 
 tinyphash_smatrixf_t tinyphash_dct_precompute() {
-  tinyphash_smatrixf_t dct_matrix = tinyphash_dct_matrix(TINY_PHASH_MATRIX_DIM);
+  tinyphash_smatrixf_t dct_matrix = tinyphash_dct_matrix(TINYPHASH_MATRIX_DIM);
 
   // Transposing alters the matrix only slightly, and probably can be skipped.
   tinyphash_smatrixf_t dct_transpose = tinyphash_transpose(dct_matrix);
@@ -145,18 +145,17 @@ uint64_t tinyphash_dct_unchecked(uint8_t *data,
                                  tinyphash_smatrixf_t dct_matrix_transposed) {
   tinyphash_smatrix_t image = {
       .buf = data,
-      .dim = TINY_PHASH_BUF_DIM,
+      .dim = TINYPHASH_INPUT_DIM,
   };
 
   // Should do convolution, but our kernel is point-symmetric, thus this
   // is OK.
   tinyphash_smatrixf_t image_mean =
-      tinyphash_correlate_mean(image, TINY_PHASH_FILTER_DIM);
+      tinyphash_correlate_mean(image, TINYPHASH_KERNEL_DIM);
 
   tinyphash_smatrixf_t subsec = {
-      .buf =
-          calloc(TINY_PHASH_SUBSEC_DIM * TINY_PHASH_SUBSEC_DIM, sizeof(float)),
-      .dim = TINY_PHASH_SUBSEC_DIM,
+      .buf = calloc(TINYPHASH_SUBSEC_DIM * TINYPHASH_SUBSEC_DIM, sizeof(float)),
+      .dim = TINYPHASH_SUBSEC_DIM,
   };
   tinyphash_multiply_cropped(image_mean, dct_matrix_transposed, subsec);
   free(image_mean.buf);
@@ -175,7 +174,7 @@ uint64_t tinyphash_dct_unchecked(uint8_t *data,
 }
 
 uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
-  assert(width == TINY_PHASH_BUF_DIM && height == TINY_PHASH_BUF_DIM);
+  assert(width == TINYPHASH_INPUT_DIM && height == TINYPHASH_INPUT_DIM);
 
   tinyphash_smatrixf_t dct_matrix_transposed = tinyphash_dct_precompute();
 
