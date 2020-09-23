@@ -1,4 +1,4 @@
-# tiny-phash
+# tinyphash
 A header-only pure-C implementation of (DCT) phash inspired by [aetilius/pHash](https://github.com/aetilius/pHash). Confirmed to be able to run on an ESP32 (with external RAM).
 
 ## Dependencies
