@@ -71,9 +71,9 @@ tinyphash_transpose(grayscalef_square_image_t matrix) {
 
 // Perform correlation filtering.
 static grayscalef_square_image_t
-tinyphash_correlate(grayscale_square_image_t image,
-                    grayscalef_square_image_t kernel) {
-  size_t dim = image.dim - kernel.dim + 1;
+tinyphash_correlate_mean(grayscale_square_image_t image,
+                         size_t mean_kernel_dim) {
+  size_t dim = image.dim - mean_kernel_dim + 1;
 
   float *buf = (float *)calloc(dim * dim, sizeof(float));
 
@@ -81,13 +81,12 @@ tinyphash_correlate(grayscale_square_image_t image,
     for (size_t x = 0; x < dim; ++x) {
       float v = 0;
 
-      for (size_t ky = 0; ky < kernel.dim; ++ky) {
-        size_t cky = ky * kernel.dim;
+      for (size_t ky = 0; ky < mean_kernel_dim; ++ky) {
         size_t ciy = (y + ky) * image.dim;
         size_t cix = ciy + x;
 
-        for (size_t kx = 0; kx < kernel.dim; ++kx) {
-          v += kernel.buf[cky + kx] * image.buf[cix + kx];
+        for (size_t kx = 0; kx < mean_kernel_dim; ++kx) {
+          v += image.buf[cix + kx];
         }
       }
 
@@ -153,21 +152,10 @@ tinyphash_dct_unchecked(uint8_t *data,
       .dim = TINY_PHASH_BUF_DIM,
   };
 
-  grayscalef_square_image_t meanfilter = {
-      .buf = (float *)calloc(TINY_PHASH_FILTER_DIM * TINY_PHASH_FILTER_DIM,
-                             sizeof(float)),
-      .dim = TINY_PHASH_FILTER_DIM,
-  };
-  for (size_t y = 0; y < meanfilter.dim; ++y) {
-    for (size_t x = 0; x < meanfilter.dim; ++x) {
-      meanfilter.buf[y * meanfilter.dim + x] = 1;
-    }
-  }
-
   // Should do convolution, but our kernel is point-symmetric, thus this
   // is OK.
-  grayscalef_square_image_t image_mean = tinyphash_correlate(image, meanfilter);
-  free(meanfilter.buf);
+  grayscalef_square_image_t image_mean =
+      tinyphash_correlate_mean(image, TINY_PHASH_FILTER_DIM);
 
   grayscalef_square_image_t subsec = {
       .buf =
