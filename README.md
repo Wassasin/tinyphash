@@ -39,14 +39,21 @@ The library itself only uses libc as a dependency. You can invoke the easy API u
 ```c
 uint64_t phash = tinyphash_dct_easy(buf, 38, 38);
 ```
-I recommend checking out the [imageresampler](https://github.com/rwohleb/imageresampler) library to sample your image down. Probably you would like to reuse the DCT transposed matrix between runs, by allocating it statically:
+I recommend checking out the [imageresampler](https://github.com/rwohleb/imageresampler) library to sample your image down.
+
+Probably you would like to reuse the DCT transposed matrix between runs, by allocating it statically:
 
 ```c
-static tinyphash_smatrixf_t *dct_matrix_transposed = NULL;
+static tinyphash_smatrixf_t *dct_matrix = NULL;
+static tinyphash_smatrixf_t *dct_transpose = NULL;
+
 if (dct_matrix_transposed == NULL) {
-    dct_matrix_transposed = malloc(sizeof(tinyphash_smatrixf_t));
-    *dct_matrix_transposed = tinyphash_dct_precompute();
+    dct_matrix = malloc(sizeof(tinyphash_smatrixf_t));
+    dct_transpose = malloc(sizeof(tinyphash_smatrixf_t));
+
+    *dct_matrix = tinyphash_dct_matrix(TINYPHASH_MATRIX_DIM);
+    *dct_transpose = tinyphash_transpose(*dct_matrix);
 }
 
-uint64_t result = tinyphash_dct_unchecked(data, *dct_matrix_transposed);
+uint64_t result = tinyphash_dct_unchecked(data, *dct_matrix, *dct_transpose);
 ```
