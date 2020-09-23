@@ -15,7 +15,6 @@ static uint8_t *read_png(const char *path, size_t width, size_t height) {
     return NULL;
   }
 
-  png_print_info(&png);
   if (png.color_type != PNG_GREYSCALE) {
     fprintf(stderr, "File is not greyscale\n");
     valid = false;
