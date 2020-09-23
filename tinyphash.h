@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef TINYPHASH_DEBUG
+#include "png.h"
+#endif
+
 #define TINYPHASH_MATRIX_DIM 32
 #define TINYPHASH_KERNEL_DIM 7
 #define TINYPHASH_INPUT_DIM (TINYPHASH_MATRIX_DIM + TINYPHASH_KERNEL_DIM - 1)
@@ -25,20 +29,64 @@ typedef struct {
   size_t dim;
 } tinyphash_smatrix_t;
 
+#ifdef TINYPHASH_DEBUG
+static tinyphash_smatrix_t tinyphash_to_discrete(tinyphash_smatrixf_t src) {
+  tinyphash_smatrix_t dest = {
+      .buf = calloc(src.dim * src.dim, sizeof(uint8_t)),
+      .dim = src.dim,
+  };
+
+  float min = INFINITY, max = -INFINITY;
+  for (size_t i = 0; i < src.dim * src.dim; ++i) {
+    min = fminf(min, src.buf[i]);
+    max = fmaxf(max, src.buf[i]);
+  }
+
+  float range = max - min;
+  for (size_t i = 0; i < src.dim * src.dim; ++i) {
+    dest.buf[i] = (src.buf[i] - min) / range * 255.;
+  }
+
+  return dest;
+}
+
+void tinyphash_write_debug(tinyphash_smatrix_t matrix, const char *path) {
+  write_png(matrix.buf, matrix.dim, matrix.dim, path);
+}
+
+void tinyphash_write_debugf(tinyphash_smatrixf_t matrix, const char *path) {
+  tinyphash_smatrix_t projected = tinyphash_to_discrete(matrix);
+  tinyphash_write_debug(projected, path);
+  free(projected.buf);
+}
+#else
+#define UNUSED(x) (void)(x)
+void tinyphash_write_debug(tinyphash_smatrix_t matrix, const char *path) {
+  UNUSED(matrix);
+  UNUSED(path);
+}
+void tinyphash_write_debugf(tinyphash_smatrixf_t matrix, const char *path) {
+  UNUSED(matrix);
+  UNUSED(path);
+}
+#endif
+
 // Compute the DCT matrix for a given dimensionality.
 static tinyphash_smatrixf_t tinyphash_dct_matrix(const size_t N) {
   float *buf = (float *)calloc(N * N, sizeof(float));
   float dv = 1 / sqrt((float)N);
-  const float c1 = sqrt(2.0 / N);
+  const float c1 = sqrt(2.0 / (float)N);
 
-  // For y = 0
+  // For y = 0, which is actually *really* significant. Especially for the
+  // transpose later on.
   for (size_t x = 0; x < N; x++) {
     buf[x] = dv;
   }
 
   for (size_t y = 1; y < N; y++) {
     for (size_t x = 0; x < N; x++) {
-      buf[y * N + x] = c1 * cos((M_PI / 2 / N) * y * (2 * x + 1));
+      buf[y * N + x] =
+          c1 * cosf((M_PI / 2. / (float)N) * (float)y * (2. * (float)x + 1.));
     }
   }
 
@@ -122,6 +170,7 @@ static int tinyphash_float_cmp(const void *x, const void *y) {
   return *(float *)x < *(float *)y ? -1 : 1;
 }
 
+// Compute the median of a sequence
 static float tinyphash_median(const float *src, size_t size) {
   float *buf = (float *)calloc(size, sizeof(float));
   memcpy(buf, src, size);
@@ -131,34 +180,36 @@ static float tinyphash_median(const float *src, size_t size) {
   return res;
 }
 
-tinyphash_smatrixf_t tinyphash_dct_precompute() {
-  tinyphash_smatrixf_t dct_matrix = tinyphash_dct_matrix(TINYPHASH_MATRIX_DIM);
-
-  // Transposing alters the matrix only slightly, and probably can be skipped.
-  tinyphash_smatrixf_t dct_transpose = tinyphash_transpose(dct_matrix);
-  free(dct_matrix.buf);
-
-  return dct_transpose;
-}
-
-uint64_t tinyphash_dct_unchecked(uint8_t *data,
-                                 tinyphash_smatrixf_t dct_matrix_transposed) {
+uint64_t tinyphash_dct_unchecked(uint8_t *data, tinyphash_smatrixf_t dct_matrix,
+                                 tinyphash_smatrixf_t dct_transpose) {
   tinyphash_smatrix_t image = {
       .buf = data,
       .dim = TINYPHASH_INPUT_DIM,
   };
+  tinyphash_write_debug(image, "image_src.png");
+  tinyphash_write_debugf(dct_matrix, "image_matrix.png");
+  tinyphash_write_debugf(dct_transpose, "image_transpose.png");
 
   // Should do convolution, but our kernel is point-symmetric, thus this
   // is OK.
   tinyphash_smatrixf_t image_mean =
       tinyphash_correlate_mean(image, TINYPHASH_KERNEL_DIM);
+  tinyphash_write_debugf(image_mean, "image_mean.png");
 
+  tinyphash_smatrixf_t mult = {
+      .buf = calloc(TINYPHASH_MATRIX_DIM * TINYPHASH_MATRIX_DIM, sizeof(float)),
+      .dim = TINYPHASH_MATRIX_DIM,
+  };
   tinyphash_smatrixf_t subsec = {
       .buf = calloc(TINYPHASH_SUBSEC_DIM * TINYPHASH_SUBSEC_DIM, sizeof(float)),
       .dim = TINYPHASH_SUBSEC_DIM,
   };
-  tinyphash_multiply_cropped(image_mean, dct_matrix_transposed, subsec);
+  tinyphash_multiply_cropped(dct_matrix, image_mean, mult);
   free(image_mean.buf);
+  tinyphash_write_debugf(mult, "image_mult.png");
+  tinyphash_multiply_cropped(mult, dct_transpose, subsec);
+  free(mult.buf);
+  tinyphash_write_debugf(subsec, "image_subsec.png");
 
   float median = tinyphash_median(subsec.buf, subsec.dim * subsec.dim);
   uint64_t result = 0;
@@ -175,11 +226,12 @@ uint64_t tinyphash_dct_unchecked(uint8_t *data,
 
 uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
   assert(width == TINYPHASH_INPUT_DIM && height == TINYPHASH_INPUT_DIM);
+  tinyphash_smatrixf_t dct_matrix = tinyphash_dct_matrix(TINYPHASH_MATRIX_DIM);
+  tinyphash_smatrixf_t dct_transpose = tinyphash_transpose(dct_matrix);
 
-  tinyphash_smatrixf_t dct_matrix_transposed = tinyphash_dct_precompute();
-
-  uint64_t result = tinyphash_dct_unchecked(data, dct_matrix_transposed);
-  free(dct_matrix_transposed.buf);
+  uint64_t result = tinyphash_dct_unchecked(data, dct_matrix, dct_transpose);
+  free(dct_matrix.buf);
+  free(dct_transpose.buf);
 
   return result;
 }
