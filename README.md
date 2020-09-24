@@ -1,5 +1,5 @@
 # tinyphash
-A header-only pure-C implementation of (DCT) phash inspired by [aetilius/pHash](https://github.com/aetilius/pHash). Confirmed to be able to run on an ESP32 (with external RAM).
+A pure-C implementation of (DCT) phash inspired by [aetilius/pHash](https://github.com/aetilius/pHash). Confirmed to be able to run on an ESP32 (with external RAM).
 
 ## Dependencies
 This library has no dependencies. However, to run the CLI you require `libpnglite` and `zlib`.
@@ -13,12 +13,12 @@ apt install libpnglite0 build-essential clang
 *Note:* with the libpnglite0 on Ubuntu 18.04 reading of files did not work. I rebuilt the library and linked statically, and hence it just worked. Generally you should:
 
 ```bash
-clang ./cli.c -O2 -g -o tinyphash -lpnglite -lz -lm
+clang ./cli.c ./tinyphash.c -O2 -g -o tinyphash -lpnglite -lz -lm
 ```
 
 But I do:
 ```bash
-clang ./cli.c ./libpnglite.a -O2 -g -o tinyphash -lz -lm
+clang ./cli.c ./tinyphash.c ./libpnglite.a -O2 -g -o tinyphash -lz -lm
 ```
 
 ## How to run
