@@ -148,12 +148,11 @@ static tinyphash_smatrixf_t tinyphash_correlate_mean(tinyphash_smatrix_t image,
   return result;
 }
 
-// Perform matrix multiplication, whilst simultaneously cropping the result to a
-// pre-allocated dest. (resulting in less multiplications)
-static void tinyphash_multiply_cropped(tinyphash_smatrixf_t a,
-                                       tinyphash_smatrixf_t b,
-                                       tinyphash_smatrixf_t dest) {
+// Perform matrix multiplication.
+static void tinyphash_multiply(tinyphash_smatrixf_t a, tinyphash_smatrixf_t b,
+                               tinyphash_smatrixf_t dest) {
   assert(a.dim == b.dim);
+  assert(a.dim == dest.dim);
 
   for (size_t i = 0; i < dest.dim; ++i) {
     for (size_t j = 0; j < dest.dim; ++j) {
@@ -162,6 +161,18 @@ static void tinyphash_multiply_cropped(tinyphash_smatrixf_t a,
         v += a.buf[i * a.dim + k] * b.buf[k * a.dim + j];
       }
       dest.buf[i * dest.dim + j] = v;
+    }
+  }
+}
+
+static void tinyphash_crop(tinyphash_smatrixf_t src, tinyphash_smatrixf_t dest,
+                           size_t offset_x, size_t offset_y) {
+  assert(src.dim >= dest.dim + offset_x && src.dim >= dest.dim + offset_y);
+
+  for (size_t y = 0; y < dest.dim; ++y) {
+    for (size_t x = 0; x < dest.dim; ++x) {
+      dest.buf[y * dest.dim + x] =
+          src.buf[(y + offset_y) * dest.dim + x + offset_x];
     }
   }
 }
@@ -207,15 +218,22 @@ uint64_t tinyphash_dct_unchecked(uint8_t *data, tinyphash_smatrixf_t dct_matrix,
       .buf = calloc(TINYPHASH_MATRIX_DIM * TINYPHASH_MATRIX_DIM, sizeof(float)),
       .dim = TINYPHASH_MATRIX_DIM,
   };
+  tinyphash_smatrixf_t mult2 = {
+      .buf = calloc(TINYPHASH_MATRIX_DIM * TINYPHASH_MATRIX_DIM, sizeof(float)),
+      .dim = TINYPHASH_MATRIX_DIM,
+  };
+  tinyphash_multiply(dct_matrix, image_mean, mult);
+  free(image_mean.buf);
+  tinyphash_write_debugf(mult, "image_mult.png");
+  tinyphash_multiply(mult, dct_transpose, mult2);
+  free(mult.buf);
   tinyphash_smatrixf_t subsec = {
       .buf = calloc(TINYPHASH_SUBSEC_DIM * TINYPHASH_SUBSEC_DIM, sizeof(float)),
       .dim = TINYPHASH_SUBSEC_DIM,
   };
-  tinyphash_multiply_cropped(dct_matrix, image_mean, mult);
-  free(image_mean.buf);
-  tinyphash_write_debugf(mult, "image_mult.png");
-  tinyphash_multiply_cropped(mult, dct_transpose, subsec);
-  free(mult.buf);
+  tinyphash_crop(mult2, subsec, 1, 1);
+  free(mult2.buf);
+
   tinyphash_write_debugf(subsec, "image_subsec.png");
 
   float median = tinyphash_median(subsec.buf, subsec.dim * subsec.dim);
