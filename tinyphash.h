@@ -50,22 +50,26 @@ static tinyphash_smatrix_t tinyphash_to_discrete(tinyphash_smatrixf_t src) {
   return dest;
 }
 
-void tinyphash_write_debug(tinyphash_smatrix_t matrix, const char *path) {
+static void tinyphash_write_debug(tinyphash_smatrix_t matrix,
+                                  const char *path) {
   write_png(matrix.buf, matrix.dim, matrix.dim, path);
 }
 
-void tinyphash_write_debugf(tinyphash_smatrixf_t matrix, const char *path) {
+static void tinyphash_write_debugf(tinyphash_smatrixf_t matrix,
+                                   const char *path) {
   tinyphash_smatrix_t projected = tinyphash_to_discrete(matrix);
   tinyphash_write_debug(projected, path);
   free(projected.buf);
 }
 #else
 #define UNUSED(x) (void)(x)
-void tinyphash_write_debug(tinyphash_smatrix_t matrix, const char *path) {
+static void tinyphash_write_debug(tinyphash_smatrix_t matrix,
+                                  const char *path) {
   UNUSED(matrix);
   UNUSED(path);
 }
-void tinyphash_write_debugf(tinyphash_smatrixf_t matrix, const char *path) {
+static void tinyphash_write_debugf(tinyphash_smatrixf_t matrix,
+                                   const char *path) {
   UNUSED(matrix);
   UNUSED(path);
 }
@@ -186,9 +190,10 @@ static float tinyphash_median(const float *src, size_t size) {
   float *buf = (float *)calloc(size, sizeof(float));
   memcpy(buf, src, size);
   qsort(buf, size, sizeof(float), tinyphash_float_cmp);
-  float res = buf[size / 2 - 1];
+  float res1 = buf[size / 2 - 1];
+  float res2 = buf[size / 2];
   free(buf);
-  return res;
+  return (res1 + res2) / 2;
 }
 
 // Compute the tinyphash fast
@@ -198,8 +203,9 @@ static float tinyphash_median(const float *src, size_t size) {
 // @param dct_matrix the result of `tinyphash_dct_matrix(TINYPHASH_MATRIX_DIM)`.
 // @param dct_transpose the value of dct_matrix passed through
 // `tinyphash_transpose`.
-uint64_t tinyphash_dct_unchecked(uint8_t *data, tinyphash_smatrixf_t dct_matrix,
-                                 tinyphash_smatrixf_t dct_transpose) {
+static uint64_t tinyphash_dct_unchecked(uint8_t *data,
+                                        tinyphash_smatrixf_t dct_matrix,
+                                        tinyphash_smatrixf_t dct_transpose) {
   tinyphash_smatrix_t image = {
       .buf = data,
       .dim = TINYPHASH_INPUT_DIM,
@@ -260,7 +266,7 @@ uint64_t tinyphash_dct_unchecked(uint8_t *data, tinyphash_smatrixf_t dct_matrix,
 // @param data a single byte per pixel matrix in grayscale.
 // @param width the width of the matrix, must be TINYPHASH_INPUT_DIM.
 // @param width the height of the matrix, must be TINYPHASH_INPUT_DIM.
-uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
+static uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
   assert(width == TINYPHASH_INPUT_DIM && height == TINYPHASH_INPUT_DIM);
   tinyphash_smatrixf_t dct_matrix = tinyphash_dct_matrix(TINYPHASH_MATRIX_DIM);
   tinyphash_smatrixf_t dct_transpose = tinyphash_transpose(dct_matrix);
@@ -273,7 +279,7 @@ uint64_t tinyphash_dct_easy(uint8_t *data, size_t width, size_t height) {
 }
 
 // Compute the absolute hamming distance, with a value between 0 and 64.
-uint8_t tinyphash_hamming_distance(uint64_t x, uint64_t y) {
+static uint8_t tinyphash_hamming_distance(uint64_t x, uint64_t y) {
   uint8_t hamming = 0;
   for (size_t i = 0; i < 64; ++i) {
     if (((x >> i) & 1) != ((y >> i) & 1)) {
@@ -284,6 +290,6 @@ uint8_t tinyphash_hamming_distance(uint64_t x, uint64_t y) {
 }
 
 // Compute the relative hamming distance, with a value between 0.0 and 1.0.
-float tinyphash_hamming_distancef(uint64_t x, uint64_t y) {
+static float tinyphash_hamming_distancef(uint64_t x, uint64_t y) {
   return ((float)tinyphash_hamming_distance(x, y)) / 64.;
 }
